@@ -1,8 +1,10 @@
 import tensorflow as tf
 import numpy as np
 import input_data
+import cv2
 from scipy import misc
 from matplotlib import pyplot as plt
+import sys
 
 def initWeight(shape):
     weights = tf.truncated_normal(shape,stddev=0.1)
@@ -21,10 +23,9 @@ def maxPool2d(x):
 sess = tf.InteractiveSession()
 
 
-
 # NOW FOR THE GRAPH BUILDING
 x = tf.placeholder("float", shape=[None, 1024])
-y_ = tf.placeholder("float", shape=[None, 4])
+y_ = tf.placeholder("float", shape=[None, 3])
 
 # turn the pixels into the a matrix
 xImage = tf.reshape(x,[-1,32,32,1])
@@ -57,8 +58,8 @@ keep_prob = tf.placeholder("float")
 h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
 # weights to turn to softmax classify
-W_fc2 = initWeight([1024, 4])
-b_fc2 = initBias([4])
+W_fc2 = initWeight([1024, 3])
+b_fc2 = initBias([3])
 y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
 
 cross_entropy = -tf.reduce_sum(y_*tf.log(y_conv  + 1e-9))
@@ -69,58 +70,48 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
 sess.run(tf.initialize_all_variables())
 
-si = 2;
-sl = ["j","k"]
+si = 3;
+sl = ["j","k","l"]
 
 batch = np.zeros((si*6,1024))
-t = 0
-for i in range(si):
-    for x in range(6):
-        t += 1
-        loc = sl[i]+""+x+".jpg"
-        print loc
-        # img = misc.imread(sl[i]+""+x+".jpg")
+labels = np.zeros((si*6,si))
 
-batch[0] = misc.imread('j1.jpg').flatten()
-batch[1] = misc.imread('liliaSmall.jpg').flatten()
-batch[2] = misc.imread('michaelSmall.jpg').flatten()
-batch[3] = misc.imread('kevinSmall.jpg').flatten()
-batch = batch/225.0
-# batch[1] = np.expand_dims(misc.imread('liliaSmall.jpg'),axis=2)
-# batch[2] = np.expand_dims(misc.imread('michaelSmall.jpg'),axis=2)
-# batch[3] = np.expand_dims(misc.imread('kevinSmall.jpg'),axis=2)
 
-labels = np.zeros((4,4))
-labels[0] = np.array([1,0,0,0])
-labels[1] = np.array([0,1,0,0])
-labels[2] = np.array([0,0,1,0])
-labels[3] = np.array([1,0,0,0])
-print labels
 
-# mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
-# mnistbatch = mnist.train.next_batch(5)
-# batch = mnistbatch[0]
-# labels = mnistbatch[1]
-#
-# print batch.shape
-print batch[0][:]
-# print labels.shape
 
-# batch = mnist.train.next_batch(3)
-for i in range(20000):
-    # batch = mnist.train.next_batch(50)
-    # print batch[0]
-    # print type(batch[0])
-    if i%10 == 0:
-        print "hi"
-        train_accuracy = accuracy.eval(feed_dict={x:batch, y_: labels, keep_prob: 1.0})
-        print "step %d, training accuracy %g"%(i, train_accuracy)
-        result = y_conv.eval(feed_dict={x: batch, y_: labels, keep_prob: 1.0})
-        # for k in range(4):
-            # print "lmao %d %s" % (k, np.array_str(result[k]))
 
-    train_step.run(feed_dict={x: batch, y_: labels, keep_prob: 0.5})
+saver = tf.train.Saver()
 
+if sys.argv[1] == "train":
+    ti = 0
+    for siii in range(si):
+        for sxxx in range(6):
+            labels[ti] = np.zeros([si])
+            labels[ti][siii] = 1;
+
+            loc = sl[siii]+""+str(sxxx+1)+"Small.jpg"
+            print loc
+            batch[ti] = misc.imread(loc).flatten()
+            ti += 1
+    batch = batch/225.0
+
+    for i in range(20000):
+        if i%10 == 0:
+            print "hi"
+            train_accuracy = accuracy.eval(feed_dict={x:batch, y_: labels, keep_prob: 1.0})
+            print "step %d, training accuracy %g"%(i, train_accuracy)
+            # result = y_conv.eval(feed_dict={x: batch, y_: labels, keep_prob: 1.0})
+            # for k in range(18):
+            #     print "lmao %d %s" % (k, np.array_str(result[k]))
+        if i%50 == 0:
+            saver.save(sess, "/Users/kevin/Documents/Python/facial-detection/training.ckpt", global_step=i)
+
+        train_step.run(feed_dict={x: batch, y_: labels, keep_prob: 0.5})
+else:
+    saver.restore(sess, tf.train.latest_checkpoint("/Users/kevin/Documents/Python/facial-detection/"))
+    batch = np.zeros((1,1024))
+    batch[0] = misc.imread(sys.argv[1]).flatten()
+    print y_conv.eval(feed_dict={x: batch, y_: labels, keep_prob: 1.0})
   # print i
 
 # print("test accuracy %g"%accuracy.eval(feed_dict={
