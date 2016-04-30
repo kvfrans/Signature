@@ -5,6 +5,8 @@ import cv2
 from scipy import misc
 from matplotlib import pyplot as plt
 import sys
+from bottle import route, run, template, static_file, get, post, request
+
 
 def initWeight(shape):
     weights = tf.truncated_normal(shape,stddev=0.1)
@@ -107,11 +109,31 @@ if sys.argv[1] == "train":
             saver.save(sess, "/Users/kevin/Documents/Python/facial-detection/training.ckpt", global_step=i)
 
         train_step.run(feed_dict={x: batch, y_: labels, keep_prob: 0.5})
+elif sys.argv[1] == "server":
+    print "server"
 else:
     saver.restore(sess, tf.train.latest_checkpoint("/Users/kevin/Documents/Python/facial-detection/"))
     batch = np.zeros((1,1024))
     batch[0] = misc.imread(sys.argv[1]).flatten()
     print y_conv.eval(feed_dict={x: batch, y_: labels, keep_prob: 1.0})
+
+
+@route('/')
+def index():
+    return "same"
+
+
+@post('/login') # or @route('/login', method='POST')
+def do_login():
+    saver.restore(sess, tf.train.latest_checkpoint("/Users/kevin/Documents/Python/facial-detection/"))
+    image = request.forms.get('image')
+    fh = open("imageToSave.png", "wb")
+    fh.write(image.decode('base64'))
+    fh.close()
+
+run(host='localhost', port=8000)
+
+
   # print i
 
 # print("test accuracy %g"%accuracy.eval(feed_dict={
