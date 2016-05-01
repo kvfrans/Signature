@@ -6,6 +6,7 @@ from scipy import misc
 from matplotlib import pyplot as plt
 import sys
 from bottle import route, run, template, static_file, get, post, request
+import urllib2
 
 
 def initWeight(shape):
@@ -27,7 +28,7 @@ sess = tf.InteractiveSession()
 
 # NOW FOR THE GRAPH BUILDING
 x = tf.placeholder("float", shape=[None, 1024])
-y_ = tf.placeholder("float", shape=[None, 3])
+y_ = tf.placeholder("float", shape=[None, 4])
 
 # turn the pixels into the a matrix
 xImage = tf.reshape(x,[-1,32,32,1])
@@ -60,8 +61,8 @@ keep_prob = tf.placeholder("float")
 h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
 # weights to turn to softmax classify
-W_fc2 = initWeight([1024, 3])
-b_fc2 = initBias([3])
+W_fc2 = initWeight([1024, 4])
+b_fc2 = initBias([4])
 y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
 
 cross_entropy = -tf.reduce_sum(y_*tf.log(y_conv  + 1e-9))
@@ -72,8 +73,9 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
 sess.run(tf.initialize_all_variables())
 
-si = 3;
-sl = ["j","k","l"]
+si = 4;
+sl = ["f","k","l","m"]
+sn = ["Kevin_Fang","Kevin_Frans","Lilia_Tang","Michael_Huang"]
 
 batch = np.zeros((si*6,1024))
 labels = np.zeros((si*6,si))
@@ -91,7 +93,7 @@ if sys.argv[1] == "train":
             labels[ti] = np.zeros([si])
             labels[ti][siii] = 1;
 
-            loc = sl[siii]+""+str(sxxx+1)+"Small.jpg"
+            loc = sl[siii]+""+str(sxxx+1)+".jpg"
             print loc
             batch[ti] = misc.imread(loc).flatten()
             ti += 1
@@ -122,14 +124,60 @@ else:
 def index():
     return "same"
 
+login = ""
 
 @post('/login') # or @route('/login', method='POST')
 def do_login():
+    global login
+
     saver.restore(sess, tf.train.latest_checkpoint("/Users/kevin/Documents/Python/facial-detection/"))
-    image = request.forms.get('image')
+    image = urllib2.urlopen('https://signatureauthentication.firebaseio.com/image.json').read()
+    image = image[1:-1]
+    image = image.replace("\\r\\n", "")
+
     fh = open("imageToSave.png", "wb")
     fh.write(image.decode('base64'))
     fh.close()
+
+    img = cv2.imread("imageToSave.png")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    scaled = cv2.resize(gray,(32,32))
+    cv2.imwrite("imageToSaveSmall.jpg",scaled);
+
+    batch = np.zeros((1,1024))
+    batch[0] = misc.imread("imageToSaveSmall.jpg").flatten()
+    pr = y_conv.eval(feed_dict={x: batch, y_: labels, keep_prob: 1.0})
+    login = sn[np.argmax(pr)];
+    print "login is " + login
+    print sn[np.argmax(pr)];
+    return sn[np.argmax(pr)];
+
+
+
+@post('/loggedin')
+def loggedin():
+    global login
+    print request.forms.get('username') + " is trying to login, it is: " + login + "asd"
+    if(login == request.forms.get('username')):
+        print "got in"
+        login = ""
+        return "true"
+    elif(login == ""):
+        login = ""
+        return "false"
+    else:
+        tmp = login
+        login = ""
+        return tmp
+
+
+@get('/reset')
+def reseto():
+    global login
+    print "reset"
+    login = ""
+
+
 
 run(host='localhost', port=8000)
 

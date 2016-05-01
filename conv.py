@@ -16,7 +16,6 @@ name = sys.argv[1]
 
 print name
 img = cv2.imread(name)
-
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
